@@ -5,7 +5,10 @@ buildscript {
         compileSdkVersion = 35
         targetSdkVersion = 35
         ndkVersion = "27.1.12297006"
-        kotlinVersion = "2.0.21"
+        // Pin Kotlin to a stable 1.8.x release for better compatibility with native modules
+        // (some libraries aren't yet compatible with Kotlin 2.0). If you know a newer
+        // compatible Kotlin version for your modules, update this accordingly.
+        kotlinVersion = "1.8.22"
     }
     repositories {
         google()

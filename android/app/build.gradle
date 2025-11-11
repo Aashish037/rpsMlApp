@@ -111,6 +111,11 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
+    // Ensure a consistent AndroidX Lifecycle runtime is available for native modules
+    // VisionCamera relies on AndroidX lifecycle APIs; pin to a stable version to avoid
+    // mismatches where an abstract member signature changed between lifecycle versions.
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.6.1"
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
