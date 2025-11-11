@@ -516,14 +516,4 @@ Argmax → Gesture class
 - Add gesture animation/feedback
 - Implement best-of-N rounds mode
 
-## 📄 License
-
-[Add your license here]
-
-## 👥 Contributors
-
-[Add contributors here]
-
----
-
-**Built with ❤️ using React Native and TensorFlow.js**
+**Built with ❤️ using React Native and TensorFlow.js By Asish Kumar Singh**
