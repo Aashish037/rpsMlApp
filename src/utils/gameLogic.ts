@@ -18,12 +18,12 @@ export function getResult(player: string, ai: string): GameResultInfo {
     (player === 'scissors' && ai === 'paper')
   ) {
     return {
-      message: `You Win! yayy\nAI chose ${ai}`,
+      message: `You Win! \nAI chose ${ai}`,
       result: 'win',
     };
   }
   return {
-    message: `You Lose! LLL\nAI chose ${ai}`,
+    message: `You Lose! \nAI chose ${ai}`,
     result: 'lose',
   };
 }

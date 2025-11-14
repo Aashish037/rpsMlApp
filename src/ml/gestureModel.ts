@@ -1,201 +1,146 @@
 import * as tf from '@tensorflow/tfjs';
-import '@tensorflow/tfjs-react-native';
-import {bundleResourceIO, decodeJpeg} from '@tensorflow/tfjs-react-native';
+import {decodeJpeg, bundleResourceIO} from '@tensorflow/tfjs-react-native';
+import RNFS from 'react-native-fs';
+
+const LABELS = ['paper', 'rock', 'scissors'];
+const MODEL_INPUT_SIZE = 224;
 
 let model: tf.LayersModel | null = null;
-const MODEL_IMAGE_SIZE = 224;
-// Labels from the trained model (lowercase to match Teachable Machine output)
-const LABELS = ['rock', 'paper', 'scissors'];
+let isModelLoading = false;
 
-// Custom IO handler to load model from bundled assets
-function createCustomModelIOHandler(): tf.io.IOHandler {
-  return {
-    load: async (): Promise<tf.io.ModelArtifacts> => {
-      try {
-        // Load model JSON
-        const modelJson = require('../../assests/models/model.json');
-        console.log('Model JSON loaded');
+const modelJson = require('../../assests/models/rps_tfjs_model/model.json');
+const modelWeights = [
+  require('../../assests/models/rps_tfjs_model/group1-shard1of11.bin'),
+  require('../../assests/models/rps_tfjs_model/group1-shard2of11.bin'),
+  require('../../assests/models/rps_tfjs_model/group1-shard3of11.bin'),
+  require('../../assests/models/rps_tfjs_model/group1-shard4of11.bin'),
+  require('../../assests/models/rps_tfjs_model/group1-shard5of11.bin'),
+  require('../../assests/models/rps_tfjs_model/group1-shard6of11.bin'),
+  require('../../assests/models/rps_tfjs_model/group1-shard7of11.bin'),
+  require('../../assests/models/rps_tfjs_model/group1-shard8of11.bin'),
+  require('../../assests/models/rps_tfjs_model/group1-shard9of11.bin'),
+  require('../../assests/models/rps_tfjs_model/group1-shard10of11.bin'),
+  require('../../assests/models/rps_tfjs_model/group1-shard11of11.bin'),
+];
 
-        // Extract model topology and weights manifest
-        const modelTopology = modelJson.modelTopology || modelJson;
-        const weightsManifest = modelJson.weightsManifest || [
-          {paths: ['weights.bin'], weights: []},
-        ];
-
-        let weightData: ArrayBuffer;
-
-        try {
-          // First, try to get the asset ID
-          const weightsModule = require('../../assests/models/weights.bin');
-          console.log('Weights module type:', typeof weightsModule);
-          console.log('Weights module keys:', Object.keys(weightsModule || {}));
-
-          if (
-            typeof weightsModule === 'object' &&
-            weightsModule.bundleResourceIO
-          ) {
-            throw new Error(
-              'weights.bin resolved to wrong module. Please restart Metro with --reset-cache and rebuild the app.',
-            );
-          }
-
-        
-          if (typeof weightsModule === 'number') {
-            const ioHandler = bundleResourceIO(modelJson, weightsModule);
-            if (ioHandler.load) {
-              const artifacts = await ioHandler.load();
-              return artifacts;
-            } else {
-              throw new Error(
-                'bundleResourceIO handler does not have load method',
-              );
-            }
-          }
-
-          if (weightsModule instanceof ArrayBuffer) {
-            weightData = weightsModule;
-          } else if (weightsModule instanceof Uint8Array) {
-            // Convert Uint8Array to ArrayBuffer
-            weightData = new ArrayBuffer(weightsModule.byteLength);
-            new Uint8Array(weightData).set(weightsModule);
-          } else if (
-            typeof weightsModule === 'object' &&
-            weightsModule.default
-          ) {
-            // Sometimes it's wrapped in { default: ... }
-            const data = weightsModule.default;
-            if (data instanceof ArrayBuffer) {
-              weightData = data;
-            } else if (data instanceof Uint8Array) {
-              weightData = new ArrayBuffer(data.byteLength);
-              new Uint8Array(weightData).set(data);
-            } else {
-              throw new Error('Unexpected weights data format in default');
-            }
-          } else {
-            // Try to convert to Uint8Array and then ArrayBuffer
-            const uint8Array = new Uint8Array(weightsModule);
-            weightData = new ArrayBuffer(uint8Array.byteLength);
-            new Uint8Array(weightData).set(uint8Array);
-          }
-
-          console.log(
-            `Weights loaded! Size: ${(
-              weightData.byteLength /
-              1024 /
-              1024
-            ).toFixed(2)} MB`,
-          );
-        } catch (weightsError: any) {
-          console.error('Error loading weights:', weightsError);
-          throw new Error(
-            `Could not load weights: ${weightsError.message}. Make sure to restart Metro with --reset-cache`,
-          );
-        }
-
-        return {
-          modelTopology,
-          weightSpecs: weightsManifest[0]?.weights || [],
-          weightData: [weightData],
-        };
-      } catch (error: any) {
-        console.error('Error in custom IO handler:', error);
-        throw error;
-      }
-    },
-  };
-}
-
-export async function loadModel() {
-  await tf.ready();
-  if (!model) {
-    try {
-      console.log('Starting model load using custom IO handler...');
-      const customIOHandler = createCustomModelIOHandler();
-      model = await tf.loadLayersModel(customIOHandler);
-      console.log('✅ Model loaded successfully!');
-      console.log('Model input shape:', model.inputs[0].shape);
-      console.log('Model output shape:', model.outputs[0].shape);
-    } catch (error) {
-      console.error('Error loading model:', error);
-      // For now, we'll let it fail gracefully and use fallback in predictGesture
-      console.warn(
-        'Model loading failed. The app will use random predictions as fallback.',
-      );
-    }
+export async function loadModel(): Promise<boolean> {
+  if (model) {
+    console.log('Model already loaded');
+    return true;
   }
-  return model;
+
+  if (isModelLoading) {
+    console.log('Model is already loading, waiting...');
+    while (isModelLoading) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return model !== null;
+  }
+
+  isModelLoading = true;
+
+  try {
+    console.log('Initializing TensorFlow.js...');
+    await tf.ready();
+    console.log('TensorFlow.js ready');
+
+    console.log('Loading model using bundleResourceIO...');
+    console.log('Model JSON loaded:', !!modelJson);
+    console.log('Model weights loaded:', modelWeights.length, 'shards');
+
+    // Load model using bundleResourceIO - the recommended way for React Native
+    model = await tf.loadLayersModel(bundleResourceIO(modelJson, modelWeights));
+
+    console.log('Model loaded successfully');
+    console.log('Model input shape:', model.inputs[0].shape);
+    console.log('Model output shape:', model.outputs[0].shape);
+
+    return true;
+  } catch (error) {
+    console.error('Error loading model:', error);
+    model = null;
+    return false;
+  } finally {
+    isModelLoading = false;
+  }
 }
 
-// Preprocess image: resize to 224x224 and normalize (optimized)
-async function preprocessImage(imageUri: string): Promise<tf.Tensor3D> {
+async function preprocessImage(imageUri: string): Promise<tf.Tensor4D> {
   try {
-    // Load image
-    const response = await fetch(imageUri);
-    if (!response.ok) {
-      throw new Error(
-        `Failed to load image: ${response.status} ${response.statusText}`,
-      );
+    // Read image file as base64
+    // Handle both file:// and content:// URIs
+    let filePath = imageUri;
+    if (imageUri.startsWith('file://')) {
+      filePath = imageUri.replace('file://', '');
+    } else if (imageUri.startsWith('content://')) {
+      filePath = imageUri;
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const imageBuffer = new Uint8Array(arrayBuffer);
+    const imageBase64 = await RNFS.readFile(filePath, 'base64');
 
-    // Decode JPEG image
-    const imageTensor = decodeJpeg(imageBuffer);
+    // Convert base64 string to Uint8Array for decodeJpeg
+    const binaryString = atob(imageBase64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
 
-    // Resize and normalize in one chain (more efficient)
+    // Decode JPEG
+    const imageTensor = decodeJpeg(bytes);
+
+    // Resize to model input size (224x224)
     const resized = tf.image.resizeBilinear(imageTensor, [
-      MODEL_IMAGE_SIZE,
-      MODEL_IMAGE_SIZE,
+      MODEL_INPUT_SIZE,
+      MODEL_INPUT_SIZE,
     ]);
-    imageTensor.dispose(); // Dispose after resize
 
-    // Normalize and batch in one operation
+    // Normalize to [0, 1] range (divide by 255)
     const normalized = resized.div(255.0);
-    resized.dispose();
 
+    // Add batch dimension [1, 224, 224, 3]
     const batched = normalized.expandDims(0);
+
+    // Clean up intermediate tensors
+    imageTensor.dispose();
+    resized.dispose();
     normalized.dispose();
 
-    return batched as tf.Tensor3D;
+    return batched as tf.Tensor4D;
   } catch (error) {
     console.error('Error preprocessing image:', error);
     throw error;
   }
 }
 
-// Predict gesture from image (optimized)
+// Function to predict gesture from image URI
 export async function predictGesture(
   imageUri: string,
 ): Promise<{gesture: string; confidence: number; allProbabilities: number[]}> {
   try {
-    const startTime = Date.now();
-    const loadedModel = await loadModel();
-    if (!loadedModel) {
-      console.warn('Model not loaded, using fallback');
-      return {
-        gesture: LABELS[Math.floor(Math.random() * LABELS.length)],
-        confidence: 0,
-        allProbabilities: [],
-      };
+    if (!model) {
+      console.log('Model not loaded, loading now...');
+      const loaded = await loadModel();
+      if (!loaded || !model) {
+        throw new Error('Failed to load model');
+      }
     }
+
+    const startTime = Date.now();
 
     // Preprocess image
     const preprocessedImage = await preprocessImage(imageUri);
 
     // Run prediction
-    const prediction = loadedModel.predict(preprocessedImage) as tf.Tensor;
+    const prediction = model.predict(preprocessedImage) as tf.Tensor;
     const probabilities = await prediction.data();
 
-    // Clean up
+    // Clean up tensors
     preprocessedImage.dispose();
     prediction.dispose();
 
     // Find the class with highest probability
     let maxIndex = 0;
     let maxProb = probabilities[0];
-    const allProbs = Array.from(probabilities);
     for (let i = 1; i < probabilities.length; i++) {
       if (probabilities[i] > maxProb) {
         maxProb = probabilities[i];
@@ -203,30 +148,34 @@ export async function predictGesture(
       }
     }
 
-    const predictedGesture = LABELS[maxIndex];
+    const gesture = LABELS[maxIndex];
     const confidence = maxProb;
+    const allProbabilities = Array.from(probabilities);
+
     const elapsedTime = Date.now() - startTime;
 
     // Log detailed prediction info
     console.log(`Prediction (${elapsedTime}ms):`, {
-      gesture: predictedGesture,
+      gesture,
       confidence: `${(confidence * 100).toFixed(1)}%`,
       probabilities: LABELS.map(
-        (label, idx) => `${label}: ${(allProbs[idx] * 100).toFixed(1)}%`,
+        (label, idx) =>
+          `${label}: ${(allProbabilities[idx] * 100).toFixed(1)}%`,
       ),
     });
 
     return {
-      gesture: predictedGesture,
+      gesture,
       confidence,
-      allProbabilities: allProbs,
+      allProbabilities,
     };
   } catch (error) {
     console.error('Error predicting gesture:', error);
+    // Return fallback prediction
     return {
       gesture: LABELS[Math.floor(Math.random() * LABELS.length)],
       confidence: 0,
-      allProbabilities: [],
+      allProbabilities: [0.33, 0.33, 0.34],
     };
   }
 }

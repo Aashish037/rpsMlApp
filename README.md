@@ -1,5 +1,7 @@
 # Rock Paper Scissors ML App 🎮🤖
 
+Video demo: [Add link here — I'll insert the demo URL later]
+
 A React Native mobile application that uses machine learning to play Rock Paper Scissors. The app uses TensorFlow.js to recognize hand gestures (rock, paper, scissors) from camera images and plays against an AI opponent.
 
 ## 📋 Table of Contents
@@ -25,71 +27,102 @@ This app combines computer vision and machine learning to create an interactive 
 - Visual feedback with color-coded results
 - Confidence scores for predictions
 
-## 🧠 Model Training Process
+## 🧠 Model Testing in Google Colab (Recommended)
 
-The machine learning model is trained using **Google Teachable Machine**, a no-code ML platform. Here's the complete process:
+This project includes a TensorFlow.js model (files under `assests/models/`). If you prefer to test or validate the model in Google Colab (the workflow used by the author), follow these steps. Two approaches are shown: a Node.js-based test (recommended) and a short note about converting for Python.
 
-### Step 1: Create Dataset 📸
+### Option A — Quick test using Node.js in Colab (recommended)
 
-1. **Open Google Teachable Machine**
+1. Open a new Colab notebook: https://colab.research.google.com/
 
-   - Go to [teachablemachine.withgoogle.com](https://teachablemachine.withgoogle.com/)
-   - Click **"Get Started"** → **"Image Project"**
+2. Mount your Google Drive (if your model files are stored there) and copy the model files into the Colab workspace, or upload them directly via the Colab file browser.
 
-2. **Set Up Classes**
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+# Example: copy files from Drive to notebook dir
+!mkdir -p /content/model
+!cp -r /content/drive/MyDrive/path-to-model/* /content/model/
+```
 
-   - You'll see three default classes: "Class 1", "Class 2", "Class 3"
-   - Rename them:
-     - **Class 1** → **Rock** ✊
-     - **Class 2** → **Paper** ✋
-     - **Class 3** → **Scissors** ✌️
+3. Install Node.js and `npm`, then install the TensorFlow.js Node bindings. Run these in a Colab cell:
 
-3. **Capture Training Samples**
-   - Click **"Webcam"** for each class
-   - Capture approximately **30-50 samples per class**
-   - Tips for better accuracy:
-     - Try slightly different angles
-     - Vary lighting conditions
-     - Include different hand positions
-     - Make sure your hand is clearly visible
-   - ✅ That's your gesture dataset!
+```bash
+# Install Node.js (if not already present) and npm
+apt-get update -y && apt-get install -y nodejs npm
 
-### Step 2: Train the Model 🎓
+# Create a working folder and install tfjs-node
+cd /content
+mkdir -p tfjs-test && cd tfjs-test
+npm init -y
+npm install @tensorflow/tfjs @tensorflow/tfjs-node
+```
 
-1. Once you've added samples for all three classes:
+4. Copy your model files inside `/content/tfjs-test/model/` (or point to where you placed them). Example using files copied earlier:
 
-   - Click **"Train Model"**
-   - Wait for training to complete (~30 seconds)
-   - The model will train automatically using transfer learning
+```bash
+cp -r /content/model/* /content/tfjs-test/model/
+```
 
-2. **Test the Model**
-   - Test it live in the browser
-   - Show your hand to the webcam
-   - Verify it recognizes gestures correctly
-   - If accuracy is low, add more training samples
+5. Create a simple Node.js test script (e.g. `model_test.js`) that loads the `model.json`, preprocesses a JPEG/PNG sample, and prints predictions.
 
-### Step 3: Export for TensorFlow.js 📤
+Example `model_test.js` (adapt input preprocessing shape as needed):
 
-1. Click **"Export Model"**
-2. Choose **"TensorFlow.js"** format
-3. Click **"Download"**
-4. You'll get a ZIP file containing:
-   - `model.json` - Model architecture and metadata
-   - `weights.bin` - Model weights
-   - `metadata.json` - Class labels and additional info
+```javascript
+const tf = require('@tensorflow/tfjs-node');
+const fs = require('fs');
 
-### Step 4: Integrate into App 📱
+async function main() {
+  // Load model from local filesystem
+  const model = await tf.loadLayersModel('file://./model/model.json');
 
-1. Extract the downloaded ZIP file
-2. Place the model files in `assests/models/` directory:
-   ```
-   assests/
-     models/
-       ├── model.json
-       ├── weights.bin
-       └── metadata.json
-   ```
-3. The app will automatically load the model on startup
+  // Read an example image (place sample.jpg in the folder)
+  const imageBuffer = fs.readFileSync('./sample.jpg');
+  let img = tf.node.decodeImage(imageBuffer, 3);
+
+  // Resize & normalize to model input (example 224x224, change if different)
+  img = tf.image
+    .resizeBilinear(img, [224, 224])
+    .expandDims(0)
+    .toFloat()
+    .div(255.0);
+
+  // Run prediction
+  const preds = model.predict(img);
+  preds.print();
+}
+
+main().catch(err => console.error(err));
+```
+
+6. Upload a test image (e.g. `sample.jpg`) to the Colab working folder or copy it from Drive, then run the Node test:
+
+```bash
+# from /content/tfjs-test
+node model_test.js
+```
+
+The script will print the raw model output (logits or probabilities depending on model). Use the `metadata.json` or the expected class index order to map outputs to `rock`, `paper`, and `scissors`.
+
+### Option B — Convert / run in Python (optional)
+
+- If you prefer pure Python in Colab, you can convert the TFJS model to a Keras/TensorFlow SavedModel using the `tensorflowjs` pip package, but conversion paths vary and may require an original Keras model. Converting TFJS -> SavedModel is possible in some cases but is more involved; the Node.js approach above is simpler for validating TFJS artifacts.
+
+### Integrating the model into the app (unchanged)
+
+After validating the model in Colab, place the final `model.json`, `weights.bin` and `metadata.json` into the project `assests/models/` directory so the app can load them at runtime. For release builds ensure the files are packaged into the Android app assets under `android/app/src/main/assets/models/`.
+
+Quick copy command (from repo root, works in Bash on Windows):
+
+```bash
+mkdir -p android/app/src/main/assets/models
+cp -r assests/models/* android/app/src/main/assets/models/
+```
+
+Notes:
+
+- The app loads the TensorFlow.js model at startup via a React Native IO handler and expects the model input size (e.g. `224x224`) used in the app preprocessing pipeline.
+- If your model uses a different input resolution or normalization, update `src/ml/gestureModel.ts` preprocessing to match.
 
 ## 📁 Project Structure
 
@@ -362,6 +395,42 @@ rpsMlApp/
    # iOS
    npm run ios
    ```
+
+## 📦 Release APK (including TensorFlow model assets)
+
+When building a release APK you must ensure the TensorFlow model files are bundled into the final APK under `assets/models/` so the app can load them via the React Native IO handler.
+
+Steps to create a signed release APK that includes the model assets:
+
+1. Copy model files into the Android app assets directory (see commands above).
+2. Ensure the ProGuard rules include TensorFlow/TFLite keeps to avoid stripping runtime classes. The project `android/app/proguard-rules.pro` has been updated with recommended rules for TensorFlow/TFLite and protobuf.
+3. Build the release APK from the `android` folder:
+
+```bash
+cd android
+./gradlew assembleRelease
+```
+
+4. The unsigned release APK will be at:
+
+```
+android/app/build/outputs/apk/release/app-release-unsigned.apk
+```
+
+If you use a signing config (recommended), your signed APK will be in the same folder as `app-release.apk` or `app-release.aab` depending on the task you run.
+
+5. Verify that the model files are present in the generated APK (you can inspect the APK as a zip file):
+
+```bash
+unzip -l android/app/build/outputs/apk/release/app-release.apk | grep models
+```
+
+If you see `assets/models/model.json` and `assets/models/weights.bin` listed, the model files are included.
+
+Troubleshooting:
+
+- If your model files are missing, double-check you copied them to `android/app/src/main/assets/models/` or configured `assets.srcDirs` in `build.gradle`.
+- If runtime errors complain about missing TensorFlow classes, make sure `android/app/proguard-rules.pro` is present and you have `minifyEnabled` properly configured for release builds (or temporarily disable minification while debugging).
 
 ## ⚙️ How It Works
 
