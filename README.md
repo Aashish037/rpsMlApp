@@ -1,10 +1,10 @@
 # Rock Paper Scissors ML App 🎮🤖
 
-Apk link: https://drive.google.com/file/d/1lyulOcYomZXMVmk_Gt9R8SdRQTahsSZW/view?usp=sharing
-Api github: https://github.com/Aashish037/rps-gesture
-Api link: https://rps-gesture-2.onrender.com
-Dataset link: https://www.kaggle.com/datasets/drgfreeman/rockpaperscissors
-Video Link: https://drive.google.com/file/d/1ka85urAjW7XsdTkDGj392m4VGp8gjX68/view?usp=sharing
+- Apk link: https://drive.google.com/file/d/1lyulOcYomZXMVmk_Gt9R8SdRQTahsSZW/view?usp=sharing
+- Api github: https://github.com/Aashish037/rps-gesture
+- Api link: https://rps-gesture-2.onrender.com
+- Dataset link: https://www.kaggle.com/datasets/drgfreeman/rockpaperscissors
+- Video Link: https://drive.google.com/file/d/1ka85urAjW7XsdTkDGj392m4VGp8gjX68/view?usp=sharing
 
 
 A React Native mobile application that uses machine learning to play Rock Paper Scissors. The app now uploads each captured frame to a hosted FastAPI service (`https://rps-gesture-2.onrender.com/predict`) which returns `rock`, `paper`, or `scissors` classifications and confidence scores for the in-app AI opponent. (A legacy TensorFlow.js pipeline still exists in `assests/models/` for offline experimentation, but it is no longer part of the runtime experience.)
