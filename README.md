@@ -1,128 +1,41 @@
 # Rock Paper Scissors ML App 🎮🤖
 
-Video demo: [Add link here — I'll insert the demo URL later]
+Apk link: https://drive.google.com/file/d/1lyulOcYomZXMVmk_Gt9R8SdRQTahsSZW/view?usp=sharing
+Api github: https://github.com/Aashish037/rps-gesture
+Api link: https://rps-gesture-2.onrender.com
+Dataset link: https://www.kaggle.com/datasets/drgfreeman/rockpaperscissors
+Video Link: https://drive.google.com/file/d/1ka85urAjW7XsdTkDGj392m4VGp8gjX68/view?usp=sharing
 
-A React Native mobile application that uses machine learning to play Rock Paper Scissors. The app uses TensorFlow.js to recognize hand gestures (rock, paper, scissors) from camera images and plays against an AI opponent.
+
+A React Native mobile application that uses machine learning to play Rock Paper Scissors. The app now uploads each captured frame to a hosted FastAPI service (`https://rps-gesture-2.onrender.com/predict`) which returns `rock`, `paper`, or `scissors` classifications and confidence scores for the in-app AI opponent. (A legacy TensorFlow.js pipeline still exists in `assests/models/` for offline experimentation, but it is no longer part of the runtime experience.)
+
+> **⚠️ Warm-up notice (Render free tier):** The hosted API on Render may be sleeping on first access. On the very first app launch you may need to wait ~30–60 seconds for the backend to warm up before predictions become available. Please be patient for the initial request.
 
 ## 📋 Table of Contents
 
 - [Overview](#overview)
-- [Model Training Process](#model-training-process)
 - [Project Structure](#project-structure)
 - [Files and Modules](#files-and-modules)
 - [Dependencies](#dependencies)
-- [Setup and Installation](#setup-and-installation)
+- [FastAPI Backend Overview](#-fastapi-backend-overview)
+- [Setup and Installation](#-setup-and-installation)
 - [How It Works](#how-it-works)
 - [Usage](#usage)
 
 ## 🎯 Overview
 
-This app combines computer vision and machine learning to create an interactive Rock Paper Scissors game. Users show their hand gesture to the camera, and the app uses a TensorFlow.js model to recognize whether it's rock, paper, or scissors. The AI then randomly selects its move, and the game determines the winner.
+This app combines computer vision and machine learning to create an interactive Rock Paper Scissors game. Users can snap a live photo (Vision Camera) or upload an existing image, and the mobile client uploads that frame to a hosted FastAPI service. The Python service (PyTorch) classifies the gesture (rock, paper, scissors), the React Native UI compares it against an AI move, and the result is rendered instantly.
 
 **Key Features:**
 
-- Real-time gesture recognition using TensorFlow.js
-- Camera integration for capturing hand gestures
+- Gesture recognition powered by a FastAPI service (Render-hosted)
+- High-quality captures using `react-native-vision-camera`
+- Optional gallery upload button so you can test saved photos
 - AI opponent with random move selection
 - Visual feedback with color-coded results
 - Confidence scores for predictions
 
-## 🧠 Model Testing in Google Colab (Recommended)
-
-This project includes a TensorFlow.js model (files under `assests/models/`). If you prefer to test or validate the model in Google Colab (the workflow used by the author), follow these steps. Two approaches are shown: a Node.js-based test (recommended) and a short note about converting for Python.
-
-### Option A — Quick test using Node.js in Colab (recommended)
-
-1. Open a new Colab notebook: https://colab.research.google.com/
-
-2. Mount your Google Drive (if your model files are stored there) and copy the model files into the Colab workspace, or upload them directly via the Colab file browser.
-
-```python
-from google.colab import drive
-drive.mount('/content/drive')
-# Example: copy files from Drive to notebook dir
-!mkdir -p /content/model
-!cp -r /content/drive/MyDrive/path-to-model/* /content/model/
-```
-
-3. Install Node.js and `npm`, then install the TensorFlow.js Node bindings. Run these in a Colab cell:
-
-```bash
-# Install Node.js (if not already present) and npm
-apt-get update -y && apt-get install -y nodejs npm
-
-# Create a working folder and install tfjs-node
-cd /content
-mkdir -p tfjs-test && cd tfjs-test
-npm init -y
-npm install @tensorflow/tfjs @tensorflow/tfjs-node
-```
-
-4. Copy your model files inside `/content/tfjs-test/model/` (or point to where you placed them). Example using files copied earlier:
-
-```bash
-cp -r /content/model/* /content/tfjs-test/model/
-```
-
-5. Create a simple Node.js test script (e.g. `model_test.js`) that loads the `model.json`, preprocesses a JPEG/PNG sample, and prints predictions.
-
-Example `model_test.js` (adapt input preprocessing shape as needed):
-
-```javascript
-const tf = require('@tensorflow/tfjs-node');
-const fs = require('fs');
-
-async function main() {
-  // Load model from local filesystem
-  const model = await tf.loadLayersModel('file://./model/model.json');
-
-  // Read an example image (place sample.jpg in the folder)
-  const imageBuffer = fs.readFileSync('./sample.jpg');
-  let img = tf.node.decodeImage(imageBuffer, 3);
-
-  // Resize & normalize to model input (example 224x224, change if different)
-  img = tf.image
-    .resizeBilinear(img, [224, 224])
-    .expandDims(0)
-    .toFloat()
-    .div(255.0);
-
-  // Run prediction
-  const preds = model.predict(img);
-  preds.print();
-}
-
-main().catch(err => console.error(err));
-```
-
-6. Upload a test image (e.g. `sample.jpg`) to the Colab working folder or copy it from Drive, then run the Node test:
-
-```bash
-# from /content/tfjs-test
-node model_test.js
-```
-
-The script will print the raw model output (logits or probabilities depending on model). Use the `metadata.json` or the expected class index order to map outputs to `rock`, `paper`, and `scissors`.
-
-### Option B — Convert / run in Python (optional)
-
-- If you prefer pure Python in Colab, you can convert the TFJS model to a Keras/TensorFlow SavedModel using the `tensorflowjs` pip package, but conversion paths vary and may require an original Keras model. Converting TFJS -> SavedModel is possible in some cases but is more involved; the Node.js approach above is simpler for validating TFJS artifacts.
-
-### Integrating the model into the app (unchanged)
-
-After validating the model in Colab, place the final `model.json`, `weights.bin` and `metadata.json` into the project `assests/models/` directory so the app can load them at runtime. For release builds ensure the files are packaged into the Android app assets under `android/app/src/main/assets/models/`.
-
-Quick copy command (from repo root, works in Bash on Windows):
-
-```bash
-mkdir -p android/app/src/main/assets/models
-cp -r assests/models/* android/app/src/main/assets/models/
-```
-
-Notes:
-
-- The app loads the TensorFlow.js model at startup via a React Native IO handler and expects the model input size (e.g. `224x224`) used in the app preprocessing pipeline.
-- If your model uses a different input resolution or normalization, update `src/ml/gestureModel.ts` preprocessing to match.
+> Legacy note: the repo still contains a historical TensorFlow.js model under `assests/models/`, but the active app no longer loads it. All inference now happens via the FastAPI service linked above. Keep the files only if you plan offline experiments.
 
 ## 📁 Project Structure
 
@@ -143,28 +56,25 @@ rpsMlApp/
 │   │   └── Info.plist
 │   └── Podfile
 │
-├── assests/                    # Model assets (source)
+├── assests/                    # Legacy TFJS assets (unused at runtime)
 │   └── models/
 │       ├── model.json
 │       ├── weights.bin
 │       └── metadata.json
 │
 ├── src/                        # React Native source code
-│   ├── App.tsx                 # Main app component
-│   ├── AppNavigator.tsx        # Navigation setup
-│   │
-│   ├── components/             # Reusable UI components
-│   │   ├── CameraView.tsx      # Camera component
-│   │   └── ResultCard.tsx      # Game result display
-│   │
-│   ├── screens/                # Screen components
-│   │   └── GameScreen.tsx      # Main game screen
-│   │
-│   ├── ml/                     # Machine learning logic
-│   │   └── gestureModel.ts     # Model loading & prediction
-│   │
-│   └── utils/                  # Utility functions
-│       └── gameLogic.ts        # Game rules & logic
+│   ├── App.tsx
+│   ├── AppNavigator.tsx
+│   ├── components/
+│   │   ├── CameraView.tsx
+│   │   └── ResultCard.tsx
+│   ├── screens/
+│   │   └── GameScreen.tsx
+│   ├── services/
+│   │   └── gestureApi.ts
+│   ├── types/
+│   └── utils/
+│       └── gameLogic.ts
 │
 ├── __tests__/                  # Test files
 │   └── App.test.tsx
@@ -183,12 +93,10 @@ rpsMlApp/
 
 - **Purpose**: Main application entry point
 - **Responsibilities**:
-  - Initializes TensorFlow.js
-  - Preloads the ML model in the background
   - Sets up navigation container
+  - Provides global error guards for promise rejections
 - **Key Features**:
-  - Calls `tf.ready()` to initialize TensorFlow.js
-  - Preloads model using `loadModel()` for faster first prediction
+  - Lightweight shell; all capture and prediction logic lives in the screen layer
 
 #### `src/AppNavigator.tsx`
 
@@ -220,14 +128,12 @@ rpsMlApp/
 
 - **Purpose**: Camera interface component
 - **Responsibilities**:
-  - Requests camera permissions
-  - Displays camera preview
-  - Captures images on button press
-  - Uses back camera (no flip functionality)
+  - Requests Vision Camera permissions
+  - Displays a full-screen preview
+  - Captures high-quality JPEGs on demand
 - **Key Features**:
-  - Permission handling for iOS and Android
-  - Image capture functionality
-  - Simple, clean UI with capture button
+  - Uses `react-native-vision-camera` with imperative capture handle
+  - Graceful states for permission prompts and missing hardware
 
 #### `src/components/ResultCard.tsx`
 
@@ -240,24 +146,19 @@ rpsMlApp/
   - Dynamic styling based on game outcome
   - Positioned overlay on camera view
 
-### Machine Learning
+### Networking & ML
 
-#### `src/ml/gestureModel.ts`
+#### `src/services/gestureApi.ts`
 
-- **Purpose**: ML model management and predictions
+- **Purpose**: FastAPI prediction client
 - **Responsibilities**:
-  - Loads TensorFlow.js model from bundled assets
-  - Preprocesses images (resize, normalize)
-  - Runs predictions on captured images
-  - Returns gesture classification with confidence
+  - Wraps the `/predict` endpoint request
+  - Normalizes file URIs (`file://`, `content://`) and MIME metadata
+  - Parses gesture/confidence values from API responses
 - **Key Functions**:
-  - `loadModel()`: Loads model from assets
-  - `preprocessImage()`: Resizes image to 224x224 and normalizes
-  - `predictGesture()`: Main prediction function
+  - `predictGestureFromApi(uri, options)`: uploads any JPEG/PNG and returns `{gesture, confidence}`
 - **Model Details**:
-  - Input size: 224x224 pixels
-  - Output: 3 classes (rock, paper, scissors)
-  - Uses custom IO handler for React Native asset loading
+  - Inference happens on the server (PyTorch). The mobile app simply streams frames.
 
 ### Utilities
 
@@ -296,23 +197,26 @@ rpsMlApp/
 
 #### Machine Learning
 
-- **`@tensorflow/tfjs`** (^4.22.0)
-  - TensorFlow.js core library
-  - Provides ML model loading and inference
-- **`@tensorflow/tfjs-react-native`** (^1.0.0)
-  - React Native bindings for TensorFlow.js
-  - Handles platform-specific optimizations
-  - Provides `decodeJpeg` and `bundleResourceIO` utilities
+- **FastAPI gesture model** (`https://rps-gesture-2.onrender.com/predict`)
+  - Receives JPEG uploads from the mobile app
+  - Runs the PyTorch model on the server and returns `rock/paper/scissors`
+  - Keeps the React Native bundle light while allowing server-side updates
 
 #### Camera & Permissions
 
-- **`react-native-camera-kit`** (^16.1.3)
-  - Camera component for React Native
-  - Handles image capture
-  - Supports front/back camera switching
+- **`react-native-vision-camera`** (^4.1.1)
+  - High-performance camera module with manual control over capture quality
+  - Returns real JPEG file paths that can be forwarded to FastAPI
+  - Supports frame processors for future on-device inference
 - **`react-native-permissions`** (^5.4.2)
-  - Cross-platform permission handling
+  - Cross-platform permission handling (Vision Camera uses it internally)
   - Requests camera permissions for iOS and Android
+- **`react-native-image-picker`** (^7.1.2)
+  - Provides the gallery upload shortcut beside the capture button
+  - Handles scoped storage differences across Android versions
+- **`@bam.tech/react-native-image-resizer`** (^2.0.0)
+  - Compresses images to ~200KB before upload for faster transfers
+  - Resizes to max 800×800px while maintaining aspect ratio
 
 #### Navigation
 
@@ -327,6 +231,12 @@ rpsMlApp/
 - **`react-native-gesture-handler`** (^2.29.1)
   - Native gesture handling
 
+#### Animation
+
+- **`react-native-reanimated`** (^3.16.1)
+  - Required peer dependency for Vision Camera
+  - Adds the Reanimated Babel plugin (`react-native-reanimated/plugin`)
+
 #### React Native
 
 - **`react`** (19.0.0)
@@ -338,6 +248,30 @@ rpsMlApp/
 - **ESLint** - Code linting
 - **Jest** - Testing framework
 - **Babel** - JavaScript transpilation
+
+## 🧠 FastAPI Backend Overview
+
+The mobile app talks to a separate repository (see links at the top) that exposes `/predict`. Its structure:
+
+```
+api/
+├── __init__.py
+├── app.py               # FastAPI routes (health + /predict)
+└── requirements.txt
+model/
+├── dataset/             # (optional) training samples grouped by class
+├── saved_model/
+│   └── model.pth        # PyTorch weights loaded at startup
+├── __init__.py
+├── inference.py         # Builds model + exposes predict() helper
+└── train.py             # Training script (offline)
+```
+
+Key points:
+
+- `app.py` imports `model.inference` lazily so the server fails fast if `model.pth` is missing.
+- `/predict` expects `multipart/form-data` with a `file` field (JPEG/PNG). That’s exactly what the React Native app sends from both camera and gallery.
+- Any time you retrain the model, drop the new `model.pth` into `model/saved_model/` and redeploy Render.
 
 ## 🔧 Setup and Installation
 
@@ -364,7 +298,18 @@ rpsMlApp/
    npm install
    ```
 
-3. **Install iOS dependencies** (iOS only)
+3. **Configure native dependencies**
+
+   ```bash
+   # Vision Camera native setup
+   npx react-native-vision-camera install
+
+   # Image Resizer native setup (Android/iOS)
+   cd android && ./gradlew clean && cd ..  # Android
+   cd ios && pod install && cd ..          # iOS only
+   ```
+
+4. **Install iOS dependencies** (iOS only)
 
    ```bash
    cd ios
@@ -373,20 +318,18 @@ rpsMlApp/
    cd ..
    ```
 
-4. **Add model files**
+5. **Configure API endpoint (optional)**
 
-   - Ensure model files are in `assests/models/`:
-     - `model.json`
-     - `weights.bin`
-     - `metadata.json`
+   - By default the app points to `https://rps-gesture-2.onrender.com/predict`.
+   - To target your own server, edit `API_BASE_URL` (and `PREDICT_PATH` if needed) in `src/services/gestureApi.ts`.
 
-5. **Start Metro bundler**
+6. **Start Metro bundler**
 
    ```bash
    npm start
    ```
 
-6. **Run the app**
+7. **Run the app**
 
    ```bash
    # Android
@@ -396,41 +339,42 @@ rpsMlApp/
    npm run ios
    ```
 
-## 📦 Release APK (including TensorFlow model assets)
+## 📦 Release Builds
 
-When building a release APK you must ensure the TensorFlow model files are bundled into the final APK under `assets/models/` so the app can load them via the React Native IO handler.
+1. **Android**
 
-Steps to create a signed release APK that includes the model assets:
+   ```bash
+   cd android
+   ./gradlew assembleRelease
+   ```
 
-1. Copy model files into the Android app assets directory (see commands above).
-2. Ensure the ProGuard rules include TensorFlow/TFLite keeps to avoid stripping runtime classes. The project `android/app/proguard-rules.pro` has been updated with recommended rules for TensorFlow/TFLite and protobuf.
-3. Build the release APK from the `android` folder:
+   The APK/AAB appears under `android/app/build/outputs/...`. No on-device ML assets are required because inference happens on the FastAPI server. Just ensure the release build has network access to your deployed endpoint (update `API_BASE_URL` if needed).
 
-```bash
-cd android
-./gradlew assembleRelease
-```
+2. **iOS**
+   ```bash
+   cd ios
+   xcodebuild -workspace rpsMlApp.xcworkspace \
+     -scheme rpsMlApp \
+     -configuration Release \
+     -sdk iphoneos \
+     -archivePath build/rpsMlApp.xcarchive archive
+   ```
+   Then export/sign within Xcode or via `xcodebuild -exportArchive`.
 
-4. The unsigned release APK will be at:
+### Performance Optimizations
 
-```
-android/app/build/outputs/apk/release/app-release-unsigned.apk
-```
+The app includes several optimizations to reduce upload time and improve responsiveness:
 
-If you use a signing config (recommended), your signed APK will be in the same folder as `app-release.apk` or `app-release.aab` depending on the task you run.
+- **Image Compression**: All images are automatically compressed to max 800×800px at 80% JPEG quality before upload, reducing file size from several MB to ~200KB.
+- **Request Timeout**: API calls have a 30-second timeout with clear error messages if the server is slow or cold-starting.
+- **Render Cold Starts**: Free tier Render services spin down after inactivity. The first request may take 30-60 seconds to wake up; subsequent requests are much faster.
 
-5. Verify that the model files are present in the generated APK (you can inspect the APK as a zip file):
+Troubleshooting tips:
 
-```bash
-unzip -l android/app/build/outputs/apk/release/app-release.apk | grep models
-```
-
-If you see `assets/models/model.json` and `assets/models/weights.bin` listed, the model files are included.
-
-Troubleshooting:
-
-- If your model files are missing, double-check you copied them to `android/app/src/main/assets/models/` or configured `assets.srcDirs` in `build.gradle`.
-- If runtime errors complain about missing TensorFlow classes, make sure `android/app/proguard-rules.pro` is present and you have `minifyEnabled` properly configured for release builds (or temporarily disable minification while debugging).
+- If Vision Camera complains about permissions, confirm you added the necessary usage descriptions to `Info.plist` and Android `AndroidManifest`.
+- If `/predict` returns 500 in production, redeploy the FastAPI service with the correct `model.pth`.
+- If uploads are slow, check your network connection. The compression step should make transfers much faster than uploading full-resolution images.
+- If you see timeout errors, wait a moment and try again—Render free tier cold starts can take up to a minute.
 
 ## ⚙️ How It Works
 
@@ -438,74 +382,49 @@ Troubleshooting:
 
 1. **App Initialization**
 
-   - `App.tsx` initializes TensorFlow.js
-   - Model is preloaded in the background
-   - Navigation is set up
+   - `App.tsx` wires up navigation and global error handlers.
+   - No ML artifacts are loaded on-device.
 
-2. **Camera View**
+2. **Camera / Gallery Input**
 
-   - User sees camera preview
-   - Camera uses back camera (no flip)
-   - User positions hand in frame
+   - Vision Camera renders the preview and exposes `capturePhoto`.
+   - The 📁 icon opens the gallery via Image Picker.
 
 3. **Image Capture**
 
-   - User taps "Capture" button
-   - Image is captured as JPEG
-   - Image URI is passed to processing
+   - User taps Capture or Upload.
+   - The resulting URI (e.g., `file://` or `content://`) is sent to `predictGestureFromApi`.
 
-4. **Image Preprocessing**
+4. **Server Upload**
 
-   - Image is loaded from URI
-   - Decoded from JPEG format
-   - Resized to 224x224 pixels (model input size)
-   - Normalized to [0, 1] range
-   - Batched for model input
+   - The app builds `FormData` with `file=@gesture.jpg`.
+   - FastAPI receives the multipart request and stores it temporarily.
 
-5. **Model Prediction**
+5. **Model Prediction (FastAPI)**
 
-   - Preprocessed image is fed to model
-   - Model outputs probabilities for 3 classes
-   - Highest probability class is selected
-   - Confidence score is calculated
+   - `model/inference.py` loads the PyTorch weights (`model/saved_model/model.pth`).
+   - The server preprocesses the image, runs inference, and responds with `{gesture, confidence}`.
 
 6. **Game Logic**
 
-   - AI randomly selects rock, paper, or scissors
-   - Game rules determine winner
-   - Result is displayed with color-coded feedback
+   - AI randomly selects rock, paper, or scissors.
+   - `getResult` compares both moves and produces the message/result.
 
 7. **Result Display**
-   - Shows user's gesture and confidence
-   - Shows AI's gesture
-   - Displays win/lose/draw message
-   - Color-coded card (green/red/orange)
+   - `ResultCard` shows player move, AI move, confidence, and contextual copy.
 
-### Model Architecture
-
-The model is a **transfer learning** model from Teachable Machine:
-
-- Base: MobileNet or similar lightweight architecture
-- Input: 224x224 RGB images
-- Output: 3-class softmax (rock, paper, scissors probabilities)
-- Optimized for mobile inference
-
-### Image Processing Pipeline
+### Data Flow Diagram
 
 ```
-Camera Image (JPEG)
-    ↓
-Decode JPEG → Tensor3D [H, W, 3]
-    ↓
-Resize to 224x224
-    ↓
-Normalize [0, 255] → [0, 1]
-    ↓
-Add batch dimension → [1, 224, 224, 3]
-    ↓
-Model Prediction → [1, 3] probabilities
-    ↓
-Argmax → Gesture class
+Vision Camera / Gallery
+        ↓
+React Native FormData upload
+        ↓
+FastAPI (/predict) → PyTorch model
+        ↓
+JSON response { gesture, confidence }
+        ↓
+getResult + ResultCard UI
 ```
 
 ## 🎮 Usage
@@ -523,7 +442,9 @@ Argmax → Gesture class
 3. **Capture gesture**
 
    - Tap the "📸 Capture" button
+   - The frame is compressed and uploaded to the FastAPI `/predict` endpoint
    - Wait for processing (shows "Analyzing gesture...")
+   - Alternatively, tap the 📁 icon to upload a photo from your gallery and send it to the same API
 
 4. **View results**
 
@@ -534,6 +455,13 @@ Argmax → Gesture class
 
 5. **Play again**
    - Capture another gesture to play again
+
+### FastAPI endpoint
+
+- The app sends every capture to `https://rps-gesture-2.onrender.com/predict`.
+- If you deploy your own FastAPI server, update `API_BASE_URL` (and optionally `PREDICT_PATH`) inside `src/services/gestureApi.ts`.
+- Ensure the device can reach the API over the network (same Wi-Fi, tunnel, or HTTPS).
+- The endpoint must accept `multipart/form-data` with a `file` field containing a JPEG/PNG.
 
 ### Tips for Better Accuracy
 
@@ -585,4 +513,4 @@ Argmax → Gesture class
 - Add gesture animation/feedback
 - Implement best-of-N rounds mode
 
-**Built with ❤️ using React Native and TensorFlow.js By Asish Kumar Singh**
+**Built with ❤️ using React Native and FastApi By Asish Kumar Singh**

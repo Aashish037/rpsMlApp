@@ -1,129 +1,154 @@
-import React, {useEffect, useState, useRef, useCallback} from 'react';
-import {View, Text, TouchableOpacity, StyleSheet, Platform} from 'react-native';
-import {Camera, CameraType} from 'react-native-camera-kit';
-import {request, PERMISSIONS, RESULTS} from 'react-native-permissions';
+import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState,} from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Platform,
+  ActivityIndicator,
+} from 'react-native';
+import {
+  Camera,
+  PhotoFile,
+  useCameraDevice,
+  useCameraPermission,
+} from 'react-native-vision-camera';
 
-export default function CameraView({
-  onCapture,
-}: {
-  onCapture: (uri: string) => void;
-}) {
-  const [hasPermission, setHasPermission] = useState(false);
-  const cameraRef = useRef<any>(null);
-  const [isCaptureDisabled, setIsCaptureDisabled] = useState<boolean>(false);
-  const disableTimerRef = useRef<any>(null);
+export type CameraViewHandle = {
+  capturePhoto: () => Promise<{uri: string; path: string} | null>;
+};
 
-  const takePicture = useCallback(async () => {
-    if (!cameraRef.current) {
-      console.warn('Camera ref not available');
-      return;
-    }
+type CameraViewProps = {
+  onCameraReady?: () => void;
+};
 
-    try {
-      const image = await cameraRef.current.capture();
-      if (image && image.uri) {
-        try {
-          onCapture(image.uri);
-          try {
-            setIsCaptureDisabled(true);
-            if (disableTimerRef.current) {
-              clearTimeout(disableTimerRef.current);
-            }
-            disableTimerRef.current = setTimeout(() => {
-              setIsCaptureDisabled(false);
-              disableTimerRef.current = null;
-            }, 2000);
-          } catch (e) {
-            console.warn('Error scheduling capture re-enable:', e);
-          }
-        } catch (callbackError) {
-          console.error('Error in onCapture callback:', callbackError);
+const normalizePathToUri = (path: string) => {
+  if (!path) {
+    return path;
+  }
+  if (path.startsWith('file://')) {
+    return path;
+  }
+  if (Platform.OS === 'android') {
+    return `file://${path}`;
+  }
+  return path;
+};
+
+const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(
+  ({onCameraReady}, ref) => {
+    const cameraRef = useRef<Camera>(null);
+    const device = useCameraDevice('back');
+    const {hasPermission, requestPermission} = useCameraPermission();
+    const [permissionRequested, setPermissionRequested] = useState(false);
+
+    useEffect(() => {
+      (async () => {
+        if (!hasPermission && !permissionRequested) {
+          setPermissionRequested(true);
+          await requestPermission();
         }
-      } else {
-        console.warn('No image URI returned from camera');
+      })();
+    }, [hasPermission, permissionRequested, requestPermission]);
+
+    useEffect(() => {
+      if (hasPermission && device && onCameraReady) {
+        onCameraReady();
       }
-    } catch (error) {
-      console.error('Error capturing image:', error);
+    }, [device, hasPermission, onCameraReady]);
+
+    const capturePhoto = useCallback(async () => {
+      if (!cameraRef.current || !hasPermission) {
+        return null;
+      }
+      try {
+        const photo: PhotoFile = await cameraRef.current.takePhoto({
+          flash: 'off',
+          qualityPrioritization: 'balanced',
+        });
+
+        return {
+          uri: normalizePathToUri(photo.path),
+          path: photo.path,
+        };
+      } catch (error) {
+        console.warn('Unable to capture photo via VisionCamera', error);
+        return null;
+      }
+    }, [hasPermission]);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        capturePhoto,
+      }),
+      [capturePhoto],
+    );
+
+    if (!hasPermission) {
+      return (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#e2e8f0" />
+          <Text style={styles.text}>
+            Grant camera permission in settings to continue.
+          </Text>
+          <Text style={styles.retry} onPress={requestPermission}>
+            Tap to retry
+          </Text>
+        </View>
+      );
     }
-  }, [onCapture]);
 
-  useEffect(() => {
-    (async () => {
-      const permission =
-        Platform.OS === 'ios'
-          ? PERMISSIONS.IOS.CAMERA
-          : PERMISSIONS.ANDROID.CAMERA;
+    if (!device) {
+      return (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#e2e8f0" />
+          <Text style={styles.text}>Looking for the back camera…</Text>
+        </View>
+      );
+    }
 
-      const result = await request(permission);
-      setHasPermission(result === RESULTS.GRANTED);
-    })();
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (disableTimerRef.current) {
-        clearTimeout(disableTimerRef.current);
-        disableTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  if (!hasPermission) {
     return (
       <View style={styles.container}>
-        <Text style={styles.text}>Requesting camera permission...</Text>
+        <Camera
+          ref={cameraRef}
+          style={styles.camera}
+          device={device}
+          isActive
+          photo
+        />
       </View>
     );
-  }
+  },
+);
 
-  return (
-    <View style={styles.container}>
-      <Camera
-        ref={cameraRef}
-        style={styles.camera}
-        cameraType={CameraType.Back}
-      />
-      {!isCaptureDisabled && (
-        <TouchableOpacity onPress={takePicture} style={styles.button}>
-          <Text style={styles.buttonText}>Capture</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
+export default CameraView;
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'black',
+  },
+  center: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: 'black',
+    gap: 12,
   },
   camera: {
     flex: 1,
-  },
-  button: {
-    position: 'absolute',
-    bottom: 32,
-    alignSelf: 'center',
-    backgroundColor: '#0ea5e9',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 999,
-    minWidth: 170,
-    shadowColor: '#0ea5e9',
-    shadowOpacity: 0.35,
-    shadowOffset: {width: 0, height: 10},
-    shadowRadius: 18,
-    elevation: 12,
-  },
-  buttonText: {
-    color: '#0f172a',
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: 1.25,
+    width: '100%',
+    height: '100%',
   },
   text: {
-    color: 'white',
+    color: '#f8fafc',
     textAlign: 'center',
     fontSize: 16,
+  },
+  retry: {
+    color: '#38bdf8',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
