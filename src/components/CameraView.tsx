@@ -115,6 +115,7 @@ const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(
           device={device}
           isActive
           photo
+          audio={false}
         />
       </View>
     );

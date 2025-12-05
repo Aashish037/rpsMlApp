@@ -11,6 +11,8 @@ A React Native mobile application that uses machine learning to play Rock Paper 
 
 > **⚠️ Warm-up notice (Render free tier):** The hosted API on Render may be sleeping on first access. On the very first app launch you may need to wait ~30–60 seconds for the backend to warm up before predictions become available. Please be patient for the initial request.
 
+![Architecture Diagram](./architecture.png)
+
 ## 📋 Table of Contents
 
 - [Overview](#overview)

@@ -98,8 +98,6 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
             signingConfig signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
@@ -107,13 +105,12 @@ android {
             shrinkResources true
         }
     }
-    // Produce smaller per-ABI APKs instead of a single universal APK.
     splits {
         abi {
-            enable true
+            enable false  // Disable splits for debug builds
             reset()
-            include "armeabi-v7a", "arm64-v8a"
-            universalApk false
+            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+            universalApk true  // Build universal APK that works on all architectures
         }
     }
     
@@ -125,13 +122,8 @@ android {
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
-    implementation("com.facebook.react:react-android")
-
-    // Ensure a consistent AndroidX Lifecycle runtime is available for native modules
-    // VisionCamera relies on AndroidX lifecycle APIs; pin to a stable version to avoid
-    // mismatches where an abstract member signature changed between lifecycle versions.
+    implementation("com.facebook.react:react-android")    
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.6.1"
-
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
